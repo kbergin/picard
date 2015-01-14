@@ -670,11 +670,7 @@ public class CommandLineParser {
                 //get all fields with this name and set them to the argument.
                 final String fieldName = optionDefinition.field.getName();
                 final Field[] fields = callerOptions.getClass().getFields();
-                final Field[] declaredFields = callerOptions.getClass().getDeclaredFields();
-                final Field[] both = new Field[fields.length + declaredFields.length];
-                System.arraycopy(fields, 0, both, 0, fields.length);
-                System.arraycopy(declaredFields, 0, both, fields.length, declaredFields.length);
-                for (final Field field : both) {
+                for (final Field field : fields) {
                     if (field.getName().equals(fieldName)) {
                         field.set(callerOptions, value);
                     }
