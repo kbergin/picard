@@ -23,10 +23,10 @@
  */
 package picard.cmdline;
 
+import edu.mit.broad.picard.util.ArrayUtil;
 import htsjdk.samtools.util.CloserUtil;
 import htsjdk.samtools.util.CollectionUtil.MultiMap;
 import htsjdk.samtools.util.StringUtil;
-import org.apache.commons.lang.ArrayUtils;
 import picard.PicardException;
 
 import java.io.BufferedReader;
@@ -672,7 +672,9 @@ public class CommandLineParser {
                 final String fieldName = optionDefinition.field.getName();
                 final Field[] fields = callerOptions.getClass().getFields();
                 final Field[] declaredFields = callerOptions.getClass().getDeclaredFields();
-                final Field[] both = (Field[]) ArrayUtils.addAll(fields, declaredFields);
+                final Field[] both = new Field[fields.length + declaredFields.length];
+                System.arraycopy(fields, 0, both, 0, fields.length);
+                System.arraycopy(declaredFields, 0, both, fields.length, declaredFields.length);
                 for (final Field field : both) {
                     if (field.getName().equals(fieldName)) {
                         field.set(callerOptions, value);
