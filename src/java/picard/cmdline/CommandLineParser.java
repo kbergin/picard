@@ -23,7 +23,6 @@
  */
 package picard.cmdline;
 
-import edu.mit.broad.picard.util.ArrayUtil;
 import htsjdk.samtools.util.CloserUtil;
 import htsjdk.samtools.util.CollectionUtil.MultiMap;
 import htsjdk.samtools.util.StringUtil;
