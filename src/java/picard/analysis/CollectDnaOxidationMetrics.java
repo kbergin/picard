@@ -206,7 +206,7 @@ public class CollectDnaOxidationMetrics extends CommandLineProgram {
             final byte[] bases = refWalker.get(info.getSequenceIndex()).getBases();
             if (pos < contextLength || pos > bases.length - contextLength) continue;
 
-            // TODO should we care about SNPs/indels in the surrounding context?
+            // TODO we should account for SNPs/indels in the surrounding context
 
             // Get the reference context string and perform counting
             final String context = StringUtil.bytesToString(bases, index - CONTEXT_SIZE, contextLength).toUpperCase();
