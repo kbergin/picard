@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashMap;
 
-/**
+/** I hope this calculates GC Bias on multiple levels... :)
  * Created by kbergin on 3/23/15.
  */
 public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, Integer, GcBiasCollectorArgs> {
@@ -33,6 +33,7 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
     public final boolean bisulfite;
     final int[] windowsByGc = new int[WINDOWS];
     byte[] gc;
+    public int extraClusters = 0;
 
     public GcBiasMetricsCollector(final Set<MetricAccumulationLevel> accumulationLevels, final List<SAMReadGroupRecord> samRgRecords, final int windowSize, final boolean bisulfite) {
         this.windowSize = windowSize;
@@ -44,6 +45,7 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
     // This method is called once Per samRecord
     @Override
     protected GcBiasCollectorArgs makeArg(SAMRecord rec, ReferenceSequence ref) {
+        //if(!rec.getReadPairedFlag() || rec.getFirstOfPairFlag()) ++extraClusters;
         if (ref!=null) {
             //only do the recalculation of gc if current ref is different from last ref
             if (ref.getContigIndex() != LASTCONTIG) {
@@ -55,7 +57,7 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
                 LASTCONTIG = ref.getContigIndex();
             }
         }
-        return new GcBiasCollectorArgs(rec, gc);
+        return new GcBiasCollectorArgs(rec, gc, ref);
     }
 
     /** Make a GcBiasCollector with the given arguments */
@@ -69,7 +71,6 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
 
     /** A Collector for individual GcBiasMetrics for a given SAMPLE or SAMPLE/LIBRARY or SAMPLE/LIBRARY/READ_GROUP (depending on aggregation levels) */
     public class PerUnitGcBiasMetricsCollector implements PerUnitMetricCollector<GcBiasMetrics, Integer, GcBiasCollectorArgs> {
-        /** what do I do here - I think I need a map to store the different levels of collection results??*/
         Map<String, GcObject> GcData = new HashMap<String, GcObject>();
         String sample = null;
         String library = null;
@@ -90,7 +91,7 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
                 prefix = this.sample;
                 GcData.put(prefix, new GcObject());
             } else {
-                prefix = "All_Reads.";
+                prefix = "All_Reads";
                 GcData.put(prefix, new GcObject());
             }
         }
@@ -98,6 +99,7 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
         public void acceptRecord(final GcBiasCollectorArgs args) {
             final SAMRecord rec = args.getRec();
             final byte[] gc = args.getGc();
+            final ReferenceSequence ref = args.getRef();
             String type = null;
             if (this.readGroup != null) {
                 type = this.readGroup;
@@ -109,7 +111,7 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
                 type = this.sample;
                 addRead(GcData.get(type), gc, rec);
             } else {
-                type = "All_Reads.";
+                type = "All_Reads";
                 addRead(GcData.get(type), gc, rec);
             }
         }
@@ -130,41 +132,40 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
         public void addMetricsToFile(final MetricsFile<GcBiasMetrics, Integer> file) {
             for (final Map.Entry<String, GcObject> entry : GcData.entrySet()) {
                 final GcObject gcCur = entry.getValue();
+                final String gcType = entry.getKey();
                 final int[] readsByGc = gcCur.readsByGc;
                 final long[] errorsByGc = gcCur.errorsByGc;
                 final long[] basesByGc = gcCur.basesByGc;
                 final int totalClusters = gcCur.totalClusters;
                 final int totalAlignedReads = gcCur.totalAlignedReads;
-
-                /**maybe I need to put something here to finish before it's added to the file..
-                 For each level in map of level -> gcObj do these calculations*/
-                final GcBiasMetrics metrics = new GcBiasMetrics();
-                final double totalWindows = sum(windowsByGc);
-                final double totalReads = sum(readsByGc);
+                GcBiasMetrics metrics = new GcBiasMetrics();
+                double totalWindows = sum(windowsByGc);
+                double totalReads = sum(readsByGc);
                 final double meanReadsPerWindow = totalReads / totalWindows;
+                if(totalAlignedReads>0) {
+                    for (int i = 0; i < windowsByGc.length; ++i) {
+                        if (windowsByGc[i] == 0) continue;
+                        final GcBiasDetailMetrics m = new GcBiasDetailMetrics();
+                        m.GC = i;
+                        m.WINDOWS = windowsByGc[i];
+                        m.READ_STARTS = readsByGc[i];
+                        if (errorsByGc[i] > 0) m.MEAN_BASE_QUALITY = QualityUtil.getPhredScoreFromObsAndErrors(basesByGc[i], errorsByGc[i]);
+                        m.NORMALIZED_COVERAGE = (m.READ_STARTS / (double) m.WINDOWS) / meanReadsPerWindow;
+                        m.ERROR_BAR_WIDTH = (Math.sqrt(m.READ_STARTS) / (double) m.WINDOWS) / meanReadsPerWindow;
 
-                for (int i = 0; i < windowsByGc.length; ++i) {
-                    if (windowsByGc[i] == 0) continue;
+                        metrics.DETAILS.addMetric(m);
+                    }
 
-                    final GcBiasDetailMetrics m = new GcBiasDetailMetrics();
-                    m.GC = i;
-                    m.WINDOWS = windowsByGc[i];
-                    m.READ_STARTS = readsByGc[i];
-                    if (errorsByGc[i] > 0) m.MEAN_BASE_QUALITY = QualityUtil.getPhredScoreFromObsAndErrors(basesByGc[i], errorsByGc[i]);
-                    m.NORMALIZED_COVERAGE = (m.READ_STARTS / (double) m.WINDOWS) / meanReadsPerWindow;
-                    m.ERROR_BAR_WIDTH = (Math.sqrt(m.READ_STARTS) / (double) m.WINDOWS) / meanReadsPerWindow;
-
-                    metrics.DETAILS.add(m);
+                    // Synthesize the high level metrics
+                    final GcBiasSummaryMetrics s = new GcBiasSummaryMetrics();
+                    s.ACCUMULATION_LEVEL = gcType;
+                    s.WINDOW_SIZE = windowSize;
+                    s.TOTAL_CLUSTERS = totalClusters;
+                    s.ALIGNED_READS = totalAlignedReads;
+                    calculateDropoutMetrics(metrics.DETAILS.getMetrics(), s);
+                    metrics.SUMMARY = s;
+                    file.addMetric(metrics);
                 }
-
-                // Synthesize the high level metrics
-                final GcBiasSummaryMetrics s = new GcBiasSummaryMetrics();
-                s.WINDOW_SIZE = windowSize;
-                s.TOTAL_CLUSTERS = totalClusters;
-                s.ALIGNED_READS = totalAlignedReads;
-                calculateDropoutMetrics(metrics.DETAILS, s);
-                metrics.SUMMARY = s;
-                file.addMetric(metrics);
             }
         }
     }
@@ -249,16 +250,17 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
 
     /**Keeps track of each level of GcCalculation*/
     class GcObject{
-        int totalClusters;
-        int totalAlignedReads;
-        int[] readsByGc;
-        long[] basesByGc;
-        long[] errorsByGc;
-
+        int totalClusters = 0;
+        int totalAlignedReads = 0;
+        int[] readsByGc = new int[windowSize];
+        long[] basesByGc = new long[windowSize];
+        long[] errorsByGc = new long[windowSize];
+        String type = null;
     }
 
     private void addRead(final GcObject gcObj, final byte[] gc, final SAMRecord rec) {
-        if (!rec.getReadPairedFlag() || rec.getFirstOfPairFlag()) ++gcObj.totalClusters;
+        ++gcObj.totalClusters;
+        //if (!rec.getReadPairedFlag() || rec.getFirstOfPairFlag()) ++gcObj.totalClusters;
         if (!rec.getReadUnmappedFlag()) {
             final int pos = rec.getReadNegativeStrandFlag() ? rec.getAlignmentEnd() - windowSize : rec.getAlignmentStart();
             ++gcObj.totalAlignedReads;
@@ -281,10 +283,13 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
 class GcBiasCollectorArgs {
     private final byte[] gc;
     private final SAMRecord rec;
+    private final ReferenceSequence ref;
     public byte[] getGc() {return gc;}
     public SAMRecord getRec() {return rec;}
-    public GcBiasCollectorArgs(final SAMRecord rec, final byte[] gc) {
+    public ReferenceSequence getRef() {return ref;}
+    public GcBiasCollectorArgs(final SAMRecord rec, final byte[] gc, final ReferenceSequence ref) {
         this.gc = gc;
         this.rec = rec;
+        this.ref = ref;
     }
 }

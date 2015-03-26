@@ -30,10 +30,10 @@ package picard.metrics;
 
 import picard.analysis.GcBiasDetailMetrics;
 import picard.analysis.GcBiasSummaryMetrics;
-import java.util.Collection;
+import htsjdk.samtools.metrics.MetricsFile;
 
 public class GcBiasMetrics extends MultilevelMetrics{
-    public Collection<GcBiasDetailMetrics> DETAILS;
+    public MetricsFile<GcBiasDetailMetrics, ?> DETAILS = new MetricsFile<GcBiasDetailMetrics, Comparable>();
 
     public GcBiasSummaryMetrics SUMMARY;
 }

@@ -59,7 +59,6 @@ public abstract class SinglePassSamProgram extends CommandLineProgram {
                                 final boolean assumeSorted,
                                 final long stopAfter,
                                 final Collection<SinglePassSamProgram> programs) {
-
         // Setup the standard inputs
         IOUtil.assertFileIsReadable(input);
         final SamReader in = SamReaderFactory.makeDefault().referenceSequence(referenceSequence).open(input);
