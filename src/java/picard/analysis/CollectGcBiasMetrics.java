@@ -83,7 +83,7 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
     public boolean IS_BISULFITE_SEQUENCED = false;
 
     @Option(shortName = "LEVEL", doc = "The level(s) at which to accumulate metrics.  ")
-    private Set<MetricAccumulationLevel> METRIC_ACCUMULATION_LEVEL = CollectionUtil.makeSet(MetricAccumulationLevel.LIBRARY);
+    private Set<MetricAccumulationLevel> METRIC_ACCUMULATION_LEVEL = CollectionUtil.makeSet(MetricAccumulationLevel.ALL_READS);
 
     // Calculates GcBiasMetrics for all METRIC_ACCUMULATION_LEVELs provided
     private GcBiasMetricsCollector multiCollector;
@@ -99,7 +99,6 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
         IOUtil.assertFileIsWritable(CHART_OUTPUT);
         if (SUMMARY_OUTPUT != null) IOUtil.assertFileIsWritable(SUMMARY_OUTPUT);
         saveHeader = header.getReadGroups().get(0).getLibrary();
-
         //Delegate actual collection to GcBiasMetricCollector
         multiCollector = new GcBiasMetricsCollector(METRIC_ACCUMULATION_LEVEL, header.getReadGroups(), WINDOW_SIZE, IS_BISULFITE_SEQUENCED);
     }
@@ -108,7 +107,9 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
     // Loop over the reference and the reads and calculate the basic metrics
     ////////////////////////////////////////////////////////////////////////////
     @Override
-    protected void acceptRead(final SAMRecord rec, final ReferenceSequence ref) {multiCollector.acceptRecord(rec, ref); }
+    protected void acceptRead(final SAMRecord rec, final ReferenceSequence ref) {
+        multiCollector.acceptRecord(rec, ref);
+    }
 
     /////////////////////////////////////////////////////////////////////////////
     // Synthesize the normalized coverage metrics and write it all out to a file
@@ -117,17 +118,17 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
     protected void finish() {
         multiCollector.finish();
         final MetricsFile<GcBiasMetrics, Integer> file = getMetricsFile();
-        final MetricsFile<GcBiasDetailMetrics, ?> detailMetricsFile = getMetricsFile();
+        MetricsFile<GcBiasDetailMetrics, ?> detailMetricsFile = getMetricsFile();
         final MetricsFile<GcBiasSummaryMetrics, ?> summaryMetricsFile = getMetricsFile();
         multiCollector.addAllLevelsToFile(file);
         final List<GcBiasMetrics> gcBiasMetricsList = file.getMetrics();
         for(final GcBiasMetrics gcbm : gcBiasMetricsList){
-            for(final GcBiasDetailMetrics m : gcbm.DETAILS){
-                detailMetricsFile.addMetric(m);
+            List<GcBiasDetailMetrics> gcDetailList = gcbm.DETAILS.getMetrics();
+            for(final GcBiasDetailMetrics d : gcDetailList) {
+                detailMetricsFile.addMetric(d);
             }
             summaryMetricsFile.addMetric(gcbm.SUMMARY);
         }
-
         detailMetricsFile.write(OUTPUT);
         summaryMetricsFile.write(SUMMARY_OUTPUT);
 
@@ -143,13 +144,13 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
             String title = INPUT.getName().replace(".duplicates_marked", "").replace(".aligned.bam", "");
             title += "." + saveHeader;
 
-            //I think this may not work correctly... may need to have it get called for each detail file...?
-            RExecutor.executeFromClasspath(R_SCRIPT,
-                    OUTPUT.getAbsolutePath(),
-                    CHART_OUTPUT.getAbsolutePath(),
-                    title,
-                    subtitle,
-                    String.valueOf(WINDOW_SIZE));
+            //I will need to edit the R script to output a chart for each details set
+//            RExecutor.executeFromClasspath(R_SCRIPT,
+//                    OUTPUT.getAbsolutePath(),
+//                    CHART_OUTPUT.getAbsolutePath(),
+//                    title,
+//                    subtitle,
+//                    String.valueOf(WINDOW_SIZE));
         }
 
     }

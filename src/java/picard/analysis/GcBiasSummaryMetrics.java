@@ -32,6 +32,7 @@ import htsjdk.samtools.metrics.MetricBase;
  * @author Tim Fennell
  */
 public class GcBiasSummaryMetrics extends MetricBase {
+    public String ACCUMULATION_LEVEL;
     /** The window size on the genome used to calculate the GC of the sequence. */
     public int WINDOW_SIZE;
 
@@ -52,5 +53,4 @@ public class GcBiasSummaryMetrics extends MetricBase {
      * (%ref_at_gc - %reads_at_gc) and summing all positive values for GC=[50..100].
      */
     public double GC_DROPOUT;
-
 }
