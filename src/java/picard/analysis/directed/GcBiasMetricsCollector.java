@@ -45,7 +45,6 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
     // This method is called once Per samRecord
     @Override
     protected GcBiasCollectorArgs makeArg(SAMRecord rec, ReferenceSequence ref) {
-        //if(!rec.getReadPairedFlag() || rec.getFirstOfPairFlag()) ++extraClusters;
         if (ref!=null) {
             //only do the recalculation of gc if current ref is different from last ref
             if (ref.getContigIndex() != LASTCONTIG) {
@@ -57,7 +56,7 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
                 LASTCONTIG = ref.getContigIndex();
             }
         }
-        return new GcBiasCollectorArgs(rec, gc, ref);
+        return new GcBiasCollectorArgs(rec, gc);
     }
 
     /** Make a GcBiasCollector with the given arguments */
@@ -99,20 +98,24 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
         public void acceptRecord(final GcBiasCollectorArgs args) {
             final SAMRecord rec = args.getRec();
             final byte[] gc = args.getGc();
-            final ReferenceSequence ref = args.getRef();
             String type = null;
+            String group = null;
             if (this.readGroup != null) {
                 type = this.readGroup;
-                addRead(GcData.get(type), gc, rec);
+                group = "Read Group";
+                addRead(GcData.get(type), gc, rec, group);
             } else if (this.library != null) {
                 type = this.library;
-                addRead(GcData.get(type), gc, rec);
+                group = "Library";
+                addRead(GcData.get(type), gc, rec, group);
             } else if (this.sample != null) {
                 type = this.sample;
-                addRead(GcData.get(type), gc, rec);
+                group = "Sample";
+                addRead(GcData.get(type), gc, rec, group);
             } else {
                 type = "All_Reads";
-                addRead(GcData.get(type), gc, rec);
+                group = "All Reads";
+                addRead(GcData.get(type), gc, rec, group);
             }
         }
 
@@ -138,6 +141,7 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
                 final long[] basesByGc = gcCur.basesByGc;
                 final int totalClusters = gcCur.totalClusters;
                 final int totalAlignedReads = gcCur.totalAlignedReads;
+                final String group = gcCur.group;
                 GcBiasMetrics metrics = new GcBiasMetrics();
                 double totalWindows = sum(windowsByGc);
                 double totalReads = sum(readsByGc);
@@ -152,13 +156,19 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
                         if (errorsByGc[i] > 0) m.MEAN_BASE_QUALITY = QualityUtil.getPhredScoreFromObsAndErrors(basesByGc[i], errorsByGc[i]);
                         m.NORMALIZED_COVERAGE = (m.READ_STARTS / (double) m.WINDOWS) / meanReadsPerWindow;
                         m.ERROR_BAR_WIDTH = (Math.sqrt(m.READ_STARTS) / (double) m.WINDOWS) / meanReadsPerWindow;
-
+                        m.ACCUMULATION_LEVEL = group;
+                        if(group == "Read Group") {m.READ_GROUP = gcType;}
+                        else if(group == "Sample") {m.SAMPLE = gcType;}
+                        else if(group == "Library") {m.LIBRARY = gcType;}
                         metrics.DETAILS.addMetric(m);
                     }
 
                     // Synthesize the high level metrics
                     final GcBiasSummaryMetrics s = new GcBiasSummaryMetrics();
-                    s.ACCUMULATION_LEVEL = gcType;
+                    if(group == "Read Group") {s.READ_GROUP = gcType;}
+                    else if(group == "Sample") {s.SAMPLE = gcType;}
+                    else if(group == "Library") {s.LIBRARY = gcType;}
+                    s.ACCUMULATION_LEVEL = group;
                     s.WINDOW_SIZE = windowSize;
                     s.TOTAL_CLUSTERS = totalClusters;
                     s.ALIGNED_READS = totalAlignedReads;
@@ -255,12 +265,11 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
         int[] readsByGc = new int[windowSize];
         long[] basesByGc = new long[windowSize];
         long[] errorsByGc = new long[windowSize];
-        String type = null;
+        String group = null;
     }
 
-    private void addRead(final GcObject gcObj, final byte[] gc, final SAMRecord rec) {
-        ++gcObj.totalClusters;
-        //if (!rec.getReadPairedFlag() || rec.getFirstOfPairFlag()) ++gcObj.totalClusters;
+    private void addRead(final GcObject gcObj, final byte[] gc, final SAMRecord rec, final String group) {
+        if (!rec.getReadPairedFlag() || rec.getFirstOfPairFlag()) ++gcObj.totalClusters;
         if (!rec.getReadUnmappedFlag()) {
             final int pos = rec.getReadNegativeStrandFlag() ? rec.getAlignmentEnd() - windowSize : rec.getAlignmentStart();
             ++gcObj.totalAlignedReads;
@@ -275,6 +284,7 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
                 }
             }
         }
+        if(gcObj.group == null){gcObj.group = group;}
     }
 }
 
@@ -283,13 +293,10 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
 class GcBiasCollectorArgs {
     private final byte[] gc;
     private final SAMRecord rec;
-    private final ReferenceSequence ref;
     public byte[] getGc() {return gc;}
     public SAMRecord getRec() {return rec;}
-    public ReferenceSequence getRef() {return ref;}
-    public GcBiasCollectorArgs(final SAMRecord rec, final byte[] gc, final ReferenceSequence ref) {
+    public GcBiasCollectorArgs(final SAMRecord rec, final byte[] gc) {
         this.gc = gc;
         this.rec = rec;
-        this.ref = ref;
     }
 }

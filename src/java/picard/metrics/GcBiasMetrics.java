@@ -28,11 +28,12 @@ package picard.metrics;
  * Created by kbergin on 3/23/15.
  */
 
+import htsjdk.samtools.metrics.MetricBase;
 import picard.analysis.GcBiasDetailMetrics;
 import picard.analysis.GcBiasSummaryMetrics;
 import htsjdk.samtools.metrics.MetricsFile;
 
-public class GcBiasMetrics extends MultilevelMetrics{
+public class GcBiasMetrics extends MetricBase {
     public MetricsFile<GcBiasDetailMetrics, ?> DETAILS = new MetricsFile<GcBiasDetailMetrics, Comparable>();
 
     public GcBiasSummaryMetrics SUMMARY;
