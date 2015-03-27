@@ -24,15 +24,16 @@
 
 package picard.analysis;
 
-import htsjdk.samtools.metrics.MetricBase;
+import picard.metrics.MultilevelMetrics;
 
 /**
  * High level metrics that capture how biased the coverage in a certain lane is.
  *
  * @author Tim Fennell
  */
-public class GcBiasSummaryMetrics extends MetricBase {
+public class GcBiasSummaryMetrics extends MultilevelMetrics {
     public String ACCUMULATION_LEVEL;
+
     /** The window size on the genome used to calculate the GC of the sequence. */
     public int WINDOW_SIZE;
 
