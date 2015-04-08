@@ -63,7 +63,7 @@ import java.util.Set;
 )
 public class CollectGcBiasMetrics extends SinglePassSamProgram {
     /** The location of the R script to do the plotting. */
-    private static final String R_SCRIPT = "picard/analysis/gcBias.R";
+    private static final File R_SCRIPT = new File("/Users/kbergin/picard","gcBias.R");
 
     // Usage and parameters
 
@@ -132,27 +132,15 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
         detailMetricsFile.write(OUTPUT);
         summaryMetricsFile.write(SUMMARY_OUTPUT);
 
-        for(final GcBiasMetrics gcR : gcBiasMetricsList) {
-            final int totalClusters = gcR.SUMMARY.TOTAL_CLUSTERS;
-            final int totalAlignedReads = gcR.SUMMARY.ALIGNED_READS;
-
-            // Plot the results for EACH level....
-            final NumberFormat fmt = NumberFormat.getIntegerInstance();
-            fmt.setGroupingUsed(true);
-            final String subtitle = "Total clusters: " + fmt.format(totalClusters) +
-                    ", Aligned reads: " + fmt.format(totalAlignedReads);
-            String title = INPUT.getName().replace(".duplicates_marked", "").replace(".aligned.bam", "");
-            title += "." + saveHeader;
-
-            //I will need to edit the R script to output a chart for each details set
-//            RExecutor.executeFromClasspath(R_SCRIPT,
-//                    OUTPUT.getAbsolutePath(),
-//                    CHART_OUTPUT.getAbsolutePath(),
-//                    title,
-//                    subtitle,
-//                    String.valueOf(WINDOW_SIZE));
-        }
-
+        final NumberFormat fmt = NumberFormat.getIntegerInstance();
+        fmt.setGroupingUsed(true);
+        //I will need to edit the R script to output a chart for each details set
+        RExecutor.executeFromFile(R_SCRIPT,
+                OUTPUT.getAbsolutePath(),
+                SUMMARY_OUTPUT.getAbsolutePath(),
+                CHART_OUTPUT.getAbsolutePath(),
+                String.valueOf(WINDOW_SIZE));
     }
-
 }
+
+
