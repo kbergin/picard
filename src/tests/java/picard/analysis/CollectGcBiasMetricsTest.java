@@ -25,7 +25,8 @@ public class CollectGcBiasMetricsTest extends CommandLineProgramTest {
         final File Soutfile   = File.createTempFile("test", ".gc_bias_summary_metrics");
         final File Doutfile = File.createTempFile("test", ".gc_bias_detail_metrics");
         final File pdf   = File.createTempFile("test", ".pdf");
-        final String accLevel = "LIBRARY";
+        final String referenceFile = "/Users/kbergin/picard/Homo_sapiens_assembly19.fasta";
+        final String accLevel = "READ_GROUP";
         final int windowSize = 100;
         final double minGenFraction = 1.0E-5;
         final boolean biSulfiteSeq = false;
@@ -36,6 +37,7 @@ public class CollectGcBiasMetricsTest extends CommandLineProgramTest {
         final String[] args = new String[] {
                 "INPUT="  + input.getAbsolutePath(),
                 "OUTPUT=" + Doutfile.getAbsolutePath(),
+                "REFERENCE_SEQUENCE=" + referenceFile,
                 "SUMMARY_OUTPUT=" + Soutfile.getAbsolutePath(),
                 "CHART_OUTPUT=" + pdf.getAbsolutePath(),
                 "WINDOW_SIZE=" + windowSize,
@@ -50,52 +52,52 @@ public class CollectGcBiasMetricsTest extends CommandLineProgramTest {
         output.read(new FileReader(Soutfile));
 
         for (final GcBiasSummaryMetrics metrics : output.getMetrics()) {
-            if (metrics.ACCUMULATION_LEVEL == "All Reads") { //ALL_READS level
+            if (metrics.ACCUMULATION_LEVEL.equals("All Reads")) { //ALL_READS level
                 Assert.assertEquals(metrics.TOTAL_CLUSTERS, 26);
                 Assert.assertEquals(metrics.ALIGNED_READS, 39);
                 Assert.assertEquals(metrics.AT_DROPOUT, 73.313212);
                 Assert.assertEquals(metrics.GC_DROPOUT, 18.944213);
-            } else if (metrics.LIBRARY == "Solexa-41753") { //One Library over one read group
+            } else if (metrics.LIBRARY != null && metrics.LIBRARY.equals("Solexa-41753")) { //One Library over one read group
                 Assert.assertEquals(metrics.TOTAL_CLUSTERS, 9);
                 Assert.assertEquals(metrics.ALIGNED_READS, 11);
                 Assert.assertEquals(metrics.AT_DROPOUT, 76.043273);
                 Assert.assertEquals(metrics.GC_DROPOUT, 18.944213);
-            } else if (metrics.LIBRARY == "Solexa-41748") {
+            } else if (metrics.LIBRARY!=null && metrics.LIBRARY.equals("Solexa-41748")) {
                 Assert.assertEquals(metrics.TOTAL_CLUSTERS, 14);
                 Assert.assertEquals(metrics.ALIGNED_READS, 23);
                 Assert.assertEquals(metrics.AT_DROPOUT, 73.313212);
                 Assert.assertEquals(metrics.GC_DROPOUT, 18.944213);
-            } else if (metrics.LIBRARY == "Solexa-41734") {
+            } else if (metrics.LIBRARY!=null && metrics.LIBRARY.equals("Solexa-41734")) {
                 Assert.assertEquals(metrics.TOTAL_CLUSTERS, 3);
                 Assert.assertEquals(metrics.ALIGNED_READS, 5);
                 Assert.assertEquals(metrics.AT_DROPOUT, 76.043273);
                 Assert.assertEquals(metrics.GC_DROPOUT, 18.944213);
-            } else if (metrics.READ_GROUP == "62A79AAXX100907.7") {
+            } else if (metrics.READ_GROUP!=null && metrics.READ_GROUP.equals("62A79AAXX100907.7")) {
                 Assert.assertEquals(metrics.TOTAL_CLUSTERS, 5);
                 Assert.assertEquals(metrics.ALIGNED_READS, 9);
                 Assert.assertEquals(metrics.AT_DROPOUT, 73.313212);
                 Assert.assertEquals(metrics.GC_DROPOUT, 21.366305);
-            } else if (metrics.READ_GROUP == "62A79AAXX100907.6") {
+            } else if (metrics.READ_GROUP!=null && metrics.READ_GROUP.equals("62A79AAXX100907.6")) {
                 Assert.assertEquals(metrics.TOTAL_CLUSTERS, 9);
                 Assert.assertEquals(metrics.ALIGNED_READS, 14);
                 Assert.assertEquals(metrics.AT_DROPOUT, 73.313212);
                 Assert.assertEquals(metrics.GC_DROPOUT, 18.944213);
-            } else if (metrics.READ_GROUP == "62A79AAXX100907.5") {
+            } else if (metrics.READ_GROUP!=null && metrics.READ_GROUP.equals("62A79AAXX100907.5")) {
                 Assert.assertEquals(metrics.TOTAL_CLUSTERS, 2);
                 Assert.assertEquals(metrics.ALIGNED_READS, 3);
                 Assert.assertEquals(metrics.AT_DROPOUT, 76.043273);
                 Assert.assertEquals(metrics.GC_DROPOUT, 18.944213);
-            } else if (metrics.READ_GROUP == "62A79AAXX100907.3") {
+            } else if (metrics.READ_GROUP!=null && metrics.READ_GROUP.equals("62A79AAXX100907.3")) {
                 Assert.assertEquals(metrics.TOTAL_CLUSTERS, 1);
                 Assert.assertEquals(metrics.ALIGNED_READS, 2);
                 Assert.assertEquals(metrics.AT_DROPOUT, 76.043273);
                 Assert.assertEquals(metrics.GC_DROPOUT, 21.366305);
-            } else if (metrics.READ_GROUP == "62A79AAXX100907.8") {
+            } else if (metrics.READ_GROUP!=null && metrics.READ_GROUP.equals("62A79AAXX100907.8")) {
                 Assert.assertEquals(metrics.TOTAL_CLUSTERS, 9);
                 Assert.assertEquals(metrics.ALIGNED_READS, 11);
                 Assert.assertEquals(metrics.AT_DROPOUT, 76.043273);
                 Assert.assertEquals(metrics.GC_DROPOUT, 18.944213);
-            } else if (metrics.SAMPLE == "NA12878") {
+            } else if (metrics.SAMPLE.equals("NA12878")) {
                 Assert.assertEquals(metrics.TOTAL_CLUSTERS, 26);
                 Assert.assertEquals(metrics.ALIGNED_READS, 39);
                 Assert.assertEquals(metrics.AT_DROPOUT, 73.313212);
