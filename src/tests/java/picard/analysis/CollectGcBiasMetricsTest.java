@@ -25,7 +25,7 @@ public class CollectGcBiasMetricsTest extends CommandLineProgramTest {
         final File Soutfile   = File.createTempFile("test", ".gc_bias_summary_metrics");
         final File Doutfile = File.createTempFile("test", ".gc_bias_detail_metrics");
         final File pdf   = File.createTempFile("test", ".pdf");
-        final String referenceFile = "/Users/kbergin/picard/Homo_sapiens_assembly19.fasta";
+        final String referenceFile = "/seq/references/Homo_sapiens_assembly19/v1/Homo_sapiens_assembly19.fasta";
         final String accLevel = "READ_GROUP";
         final int windowSize = 100;
         final double minGenFraction = 1.0E-5;

@@ -63,7 +63,7 @@ import java.util.Set;
 )
 public class CollectGcBiasMetrics extends SinglePassSamProgram {
     /** The location of the R script to do the plotting. */
-    private static final File R_SCRIPT = new File("/Users/kbergin/picard","gcBias.R");
+    private static final File R_SCRIPT = new File("picard/src/scripts/picard/analysis/","gcBias.R");
 
     // Usage and parameters
 
