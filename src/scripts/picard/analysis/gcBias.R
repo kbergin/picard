@@ -12,11 +12,6 @@ summaryMetricsFile <- args[2]
 outputFile   <- args[3]
 windowSize   <- args[4]
 
-metricsFile="/Users/kbergin/picard/gc_bias_metrics_test.detail_metrics"
-summaryMetricsFile="/Users/kbergin/picard/gc_bias_metrics_test.summary_metrics"
-outputFile="/Users/kbergin/picard/gc_bias_metrics_test.chartout.pdf "
-windowSize =100
-
 # Figure out where the metrics and the histogram are in the file and parse them out
 startFinder <- scan(metricsFile, what="character", sep="\n", quiet=TRUE, blank.lines.skip=FALSE)
 startFinder2 <- scan(summaryMetricsFile, what="character", sep="\n", quiet=TRUE, blank.lines.skip=FALSE)
