@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashMap;
 
-/** I hope this calculates GC Bias on multiple levels... :)
+/** Calculates GcBias Metrics on multiple levels
  * Created by kbergin on 3/23/15.
  */
 public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, Integer, GcBiasCollectorArgs> {

@@ -87,7 +87,6 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
 
     // Calculates GcBiasMetrics for all METRIC_ACCUMULATION_LEVELs provided
     private GcBiasMetricsCollector multiCollector;
-    private String saveHeader;
 
     /** Stock main method. */
     public static void main(final String[] args) {
@@ -98,13 +97,12 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
     protected void setup(final SAMFileHeader header, final File samFile) {
         IOUtil.assertFileIsWritable(CHART_OUTPUT);
         if (SUMMARY_OUTPUT != null) IOUtil.assertFileIsWritable(SUMMARY_OUTPUT);
-        saveHeader = header.getReadGroups().get(0).getLibrary();
         //Delegate actual collection to GcBiasMetricCollector
         multiCollector = new GcBiasMetricsCollector(METRIC_ACCUMULATION_LEVEL, header.getReadGroups(), WINDOW_SIZE, IS_BISULFITE_SEQUENCED);
     }
 
     ////////////////////////////////////////////////////////////////////////////
-    // Loop over the reference and the reads and calculate the basic metrics
+    // MultiCollector acceptRead
     ////////////////////////////////////////////////////////////////////////////
     @Override
     protected void acceptRead(final SAMRecord rec, final ReferenceSequence ref) {
@@ -112,7 +110,7 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
     }
 
     /////////////////////////////////////////////////////////////////////////////
-    // Synthesize the normalized coverage metrics and write it all out to a file
+    // Write out all levels of normalized coverage metrics to a file
     /////////////////////////////////////////////////////////////////////////////
     @Override
     protected void finish() {
@@ -134,7 +132,6 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
 
         final NumberFormat fmt = NumberFormat.getIntegerInstance();
         fmt.setGroupingUsed(true);
-        //I will need to edit the R script to output a chart for each details set
         RExecutor.executeFromFile(R_SCRIPT,
                 OUTPUT.getAbsolutePath(),
                 SUMMARY_OUTPUT.getAbsolutePath(),
