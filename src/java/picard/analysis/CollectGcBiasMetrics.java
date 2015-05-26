@@ -25,14 +25,16 @@
 package picard.analysis;
 
 import htsjdk.samtools.SAMFileHeader;
+import htsjdk.samtools.reference.ReferenceSequenceFile;
+import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.metrics.MetricsFile;
 import htsjdk.samtools.reference.ReferenceSequence;
 import htsjdk.samtools.util.CollectionUtil;
 import htsjdk.samtools.util.IOUtil;
+import htsjdk.samtools.util.StringUtil;
 import picard.cmdline.CommandLineProgramProperties;
 import picard.cmdline.Option;
-import picard.cmdline.StandardOptionDefinitions;
 import picard.cmdline.programgroups.Metrics;
 import picard.util.RExecutor;
 import picard.analysis.directed.GcBiasMetricsCollector;
@@ -40,7 +42,9 @@ import picard.metrics.GcBiasMetrics;
 
 import java.io.File;
 import java.text.NumberFormat;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -83,10 +87,15 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
     public boolean IS_BISULFITE_SEQUENCED = false;
 
     @Option(shortName = "LEVEL", doc = "The level(s) at which to accumulate metrics.  ")
-    private Set<MetricAccumulationLevel> METRIC_ACCUMULATION_LEVEL = CollectionUtil.makeSet(MetricAccumulationLevel.ALL_READS);
+    private final Set<MetricAccumulationLevel> METRIC_ACCUMULATION_LEVEL = CollectionUtil.makeSet(MetricAccumulationLevel.ALL_READS);
 
     // Calculates GcBiasMetrics for all METRIC_ACCUMULATION_LEVELs provided
     private GcBiasMetricsCollector multiCollector;
+    public byte[] refBases;
+    public final int windowSize = WINDOW_SIZE;
+    final int[] windowsByGc = new int[WINDOWS];
+    public static final int WINDOWS = 101;
+    private final Map<String, byte[]> refByGc = new HashMap<String, byte[]>();
 
     /** Stock main method. */
     public static void main(final String[] args) {
@@ -94,11 +103,22 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
     }
 
     @Override
-    protected void setup(final SAMFileHeader header, final File samFile) {
+    protected void setup(final SAMFileHeader header, final File samFile, final File referenceFile) {
         IOUtil.assertFileIsWritable(CHART_OUTPUT);
         if (SUMMARY_OUTPUT != null) IOUtil.assertFileIsWritable(SUMMARY_OUTPUT);
+        final ReferenceSequenceFile refFile = ReferenceSequenceFileFactory.getReferenceSequenceFile(REFERENCE_SEQUENCE);
+        ReferenceSequence ref;
+        while ((ref = refFile.nextSequence()) != null) {
+            final byte[] refBases = ref.getBases();
+            final String refName = ref.getName();
+            StringUtil.toUpperCase(refBases);
+            final int refLength = refBases.length;
+            final int lastWindowStart = refLength - windowSize;
+            final byte[] gc = calculateAllGcs(refBases, windowsByGc, lastWindowStart);
+            refByGc.put(refName, gc);
+        }
         //Delegate actual collection to GcBiasMetricCollector
-        multiCollector = new GcBiasMetricsCollector(METRIC_ACCUMULATION_LEVEL, header.getReadGroups(), WINDOW_SIZE, IS_BISULFITE_SEQUENCED);
+        multiCollector = new GcBiasMetricsCollector(METRIC_ACCUMULATION_LEVEL, refByGc, windowsByGc, header.getReadGroups(), windowSize, IS_BISULFITE_SEQUENCED);
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -116,12 +136,12 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
     protected void finish() {
         multiCollector.finish();
         final MetricsFile<GcBiasMetrics, Integer> file = getMetricsFile();
-        MetricsFile<GcBiasDetailMetrics, ?> detailMetricsFile = getMetricsFile();
+        final MetricsFile<GcBiasDetailMetrics, ?> detailMetricsFile = getMetricsFile();
         final MetricsFile<GcBiasSummaryMetrics, ?> summaryMetricsFile = getMetricsFile();
         multiCollector.addAllLevelsToFile(file);
         final List<GcBiasMetrics> gcBiasMetricsList = file.getMetrics();
         for(final GcBiasMetrics gcbm : gcBiasMetricsList){
-            List<GcBiasDetailMetrics> gcDetailList = gcbm.DETAILS.getMetrics();
+            final List<GcBiasDetailMetrics> gcDetailList = gcbm.DETAILS.getMetrics();
             for(final GcBiasDetailMetrics d : gcDetailList) {
                 detailMetricsFile.addMetric(d);
             }
@@ -137,6 +157,53 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
                 SUMMARY_OUTPUT.getAbsolutePath(),
                 CHART_OUTPUT.getAbsolutePath(),
                 String.valueOf(WINDOW_SIZE));
+    }
+    /** Calculcate all the GC values for all windows. */
+    private byte[] calculateAllGcs(final byte[] refBases, final int[] windowsByGc, final int lastWindowStart) {
+        final CalculateGcState state = new CalculateGcState();
+        final int refLength = refBases.length;
+        final byte[] gc = new byte[refLength + 1];
+        for (int i = 1; i < lastWindowStart; ++i) {
+            final int windowEnd = i + windowSize;
+            final int windowGc = calculateGc(refBases, i, windowEnd, state);
+            gc[i] = (byte) windowGc;
+            if (windowGc != -1) windowsByGc[windowGc]++;
+        }
+        return gc;
+    }
+    /**
+     * Calculates GC as a number from 0 to 100 in the specified window. If the window includes
+     * more than five no-calls then -1 is returned.
+     */
+    private int calculateGc(final byte[] bases, final int startIndex, final int endIndex, final CalculateGcState state) {
+        if (state.init) {
+            state.init = false;
+            state.gcCount = 0;
+            state.nCount = 0;
+            for (int i = startIndex; i < endIndex; ++i) {
+                final byte base = bases[i];
+                if (base == 'G' || base == 'C') ++state.gcCount;
+                else if (base == 'N') ++state.nCount;
+            }
+        } else {
+            final byte newBase = bases[endIndex - 1];
+            if (newBase == 'G' || newBase == 'C') ++state.gcCount;
+            else if (newBase == 'N') ++state.nCount;
+
+            if (state.priorBase == 'G' || state.priorBase == 'C') --state.gcCount;
+            else if (state.priorBase == 'N') --state.nCount;
+        }
+        state.priorBase = bases[startIndex];
+        if (state.nCount > 4) return -1;
+        else return (state.gcCount * 100) / (endIndex - startIndex);
+    }
+
+    /** Keeps track of current GC calculation state. */
+    class CalculateGcState {
+        boolean init = true;
+        int nCount;
+        int gcCount;
+        byte priorBase;
     }
 }
 
