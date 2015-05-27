@@ -27,15 +27,15 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
     // at windows of each GC. Need 101 to get from 0-100.
     public final int windowSize;
     public final boolean bisulfite;
-    public Map<String, byte[]> refByGc;
+    public Map<String, byte[]> gcByRef;
     public int extraClusters = 0;
     public int[] windowsByGc = new int[WINDOWS];
     public static final int WINDOWS = 101;
 
-    public GcBiasMetricsCollector(final Set<MetricAccumulationLevel> accumulationLevels, final Map<String, byte[]> refByGc, final int[] windowsByGc, final List<SAMReadGroupRecord> samRgRecords, final int windowSize, final boolean bisulfite) {
+    public GcBiasMetricsCollector(final Set<MetricAccumulationLevel> accumulationLevels, final Map<String, byte[]> gcByRef, final int[] windowsByGc, final List<SAMReadGroupRecord> samRgRecords, final int windowSize, final boolean bisulfite) {
         this.windowSize = windowSize;
         this.bisulfite = bisulfite;
-        this.refByGc = refByGc;
+        this.gcByRef = gcByRef;
         this.windowsByGc = windowsByGc;
         setup(accumulationLevels, samRgRecords);
     }
@@ -63,6 +63,7 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
         String library = null;
         String readGroup = null;
 
+        /*Records the accumulation level for each level of collection and initializes a GcObject for this accumulation level*/
         public PerUnitGcBiasMetricsCollector(final String sample, final String library, final String readGroup) {
             this.sample = sample;
             this.library = library;
@@ -82,31 +83,39 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
                 gcData.put(prefix, new GcObject());
             }
         }
-
+/* takes each record and sends them to addRead to calculate gc metrics for that read for each accumulation level */
         public void acceptRecord(final GcBiasCollectorArgs args) {
             final SAMRecord rec = args.getRec();
-            final ReferenceSequence ref = args.getRef();
-            final byte[] refBases = ref.getBases();
-            final String refName = ref.getName();
-            final byte[] gc = refByGc.get(refName);
             final String type;
-            final String group;
-            if (this.readGroup != null) {
-                type = this.readGroup;
-                group = "Read Group";
-                addRead(gcData.get(type), rec, group, gc, refBases);
-            } else if (this.library != null) {
-                type = this.library;
-                group = "Library";
-                addRead(gcData.get(type), rec, group, gc, refBases);
-            } else if (this.sample != null) {
-                type = this.sample;
-                group = "Sample";
-                addRead(gcData.get(type), rec, group, gc, refBases);
-            } else {
-                type = "All_Reads";
-                group = "All Reads";
-                addRead(gcData.get(type), rec, group, gc, refBases);
+            if(!rec.getReadUnmappedFlag()) {
+                final ReferenceSequence ref = args.getRef();
+                final byte[] refBases = ref.getBases();
+                final String refName = ref.getName();
+                final byte[] gc = gcByRef.get(refName);
+                final String group;
+                if (this.readGroup != null) {
+                    type = this.readGroup;
+                    group = "Read Group";
+                    addRead(gcData.get(type), rec, group, gc, refBases);
+                } else if (this.library != null) {
+                    type = this.library;
+                    group = "Library";
+                    addRead(gcData.get(type), rec, group, gc, refBases);
+                } else if (this.sample != null) {
+                    type = this.sample;
+                    group = "Sample";
+                    addRead(gcData.get(type), rec, group, gc, refBases);
+                } else {
+                    type = "All_Reads";
+                    group = "All Reads";
+                    addRead(gcData.get(type), rec, group, gc, refBases);
+                }
+            }
+            else {
+                for (final Map.Entry<String, GcObject> entry : gcData.entrySet()) {
+                    final GcObject gcCur = entry.getValue();
+                    if (!rec.getReadPairedFlag() || rec.getFirstOfPairFlag()) ++gcCur.totalClusters;
+                }
             }
         }
 
@@ -122,7 +131,8 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
 
             return total;
         }
-
+/* called to add metrics to the output file for each level of collection
+* these metrics are used for graphing gc bias in R script */
         public void addMetricsToFile(final MetricsFile<GcBiasMetrics, Integer> file) {
             for (final Map.Entry<String, GcObject> entry : gcData.entrySet()) {
                 final GcObject gcCur = entry.getValue();
@@ -158,7 +168,7 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
                         else if(group.equals("Library")) {m.LIBRARY = gcType;}
                         metrics.DETAILS.addMetric(m);
                     }
-                    // Synthesize the high level metrics
+                    // Synthesize the high level summary metrics
                     final GcBiasSummaryMetrics s = new GcBiasSummaryMetrics();
                     if(group.equals("Read Group")) {s.READ_GROUP = gcType;}
                     else if(group.equals("Sample")) {s.SAMPLE = gcType;}
@@ -215,23 +225,25 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
         String group = null;
     }
 
+    /**Adds each read to the appropriate gcObj which is determined in acceptRecord above
+     * Also calculates values for calculating GC Bias at each level */
     private void addRead(final GcObject gcObj, final SAMRecord rec, final String group, final byte[] gc, final byte[] refBases) {
         if (!rec.getReadPairedFlag() || rec.getFirstOfPairFlag()) ++gcObj.totalClusters;
-            if (!rec.getReadUnmappedFlag()) {
-                final int pos = rec.getReadNegativeStrandFlag() ? rec.getAlignmentEnd() - windowSize : rec.getAlignmentStart();
-                ++gcObj.totalAlignedReads;
-                if (pos > 0) {
-                    final int windowGc = gc[pos];
-                    if (windowGc >= 0) {
-                        ++gcObj.readsByGc[windowGc];
-                        gcObj.basesByGc[windowGc] += rec.getReadLength();
-                        gcObj.errorsByGc[windowGc] +=
-                                SequenceUtil.countMismatches(rec, refBases, bisulfite) +
-                                        SequenceUtil.countInsertedBases(rec) + SequenceUtil.countDeletedBases(rec);
-                    }
-                }
+        final int pos = rec.getReadNegativeStrandFlag() ? rec.getAlignmentEnd() - windowSize : rec.getAlignmentStart();
+        ++gcObj.totalAlignedReads;
+        if (pos > 0) {
+            final int windowGc = gc[pos];
+            if (windowGc >= 0) {
+                ++gcObj.readsByGc[windowGc];
+                gcObj.basesByGc[windowGc] += rec.getReadLength();
+                gcObj.errorsByGc[windowGc] +=
+                        SequenceUtil.countMismatches(rec, refBases, bisulfite) +
+                                SequenceUtil.countInsertedBases(rec) + SequenceUtil.countDeletedBases(rec);
             }
-        if(gcObj.group == null){gcObj.group = group;}
+        }
+        if (gcObj.group == null) {
+            gcObj.group = group;
+        }
     }
 }
 

@@ -67,7 +67,7 @@ import java.util.Set;
 )
 public class CollectGcBiasMetrics extends SinglePassSamProgram {
     /** The location of the R script to do the plotting. */
-    private static final File R_SCRIPT = new File("picard/src/scripts/picard/analysis/","gcBias.R");
+    private static final File R_SCRIPT = new File("src/scripts/picard/analysis/","gcBias.R");
 
     // Usage and parameters
 
@@ -95,13 +95,16 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
     public final int windowSize = WINDOW_SIZE;
     final int[] windowsByGc = new int[WINDOWS];
     public static final int WINDOWS = 101;
-    private final Map<String, byte[]> refByGc = new HashMap<String, byte[]>();
+    //Needed a way to store GC calculation for each base in each reference sequence: hash of gc[] for each reference
+    private final Map<String, byte[]> gcByRef = new HashMap<String, byte[]>();
 
     /** Stock main method. */
     public static void main(final String[] args) {
         System.exit(new CollectGcBiasMetrics().instanceMain(args));
     }
 
+    //Setup calculates gc[] for each reference. Must be done at startup to avoid missing reference sequences in the case of small files
+    // that may not have reads aligning to every reference sequence
     @Override
     protected void setup(final SAMFileHeader header, final File samFile, final File referenceFile) {
         IOUtil.assertFileIsWritable(CHART_OUTPUT);
@@ -115,10 +118,10 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
             final int refLength = refBases.length;
             final int lastWindowStart = refLength - windowSize;
             final byte[] gc = calculateAllGcs(refBases, windowsByGc, lastWindowStart);
-            refByGc.put(refName, gc);
+            gcByRef.put(refName, gc);
         }
         //Delegate actual collection to GcBiasMetricCollector
-        multiCollector = new GcBiasMetricsCollector(METRIC_ACCUMULATION_LEVEL, refByGc, windowsByGc, header.getReadGroups(), windowSize, IS_BISULFITE_SEQUENCED);
+        multiCollector = new GcBiasMetricsCollector(METRIC_ACCUMULATION_LEVEL, gcByRef, windowsByGc, header.getReadGroups(), windowSize, IS_BISULFITE_SEQUENCED);
     }
 
     ////////////////////////////////////////////////////////////////////////////
