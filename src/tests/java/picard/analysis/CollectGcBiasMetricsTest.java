@@ -11,6 +11,7 @@ import java.io.IOException;
 
 /**
  * Created by kbergin on 3/26/15 to test GcBias MultiLevel Collector.
+ * Note: 'accLevel' needs to be changed to test various accumulation levels with this test class
  */
 public class CollectGcBiasMetricsTest extends CommandLineProgramTest {
     private static final File TEST_DATA_DIR = new File("testdata/picard/sam/");
@@ -25,9 +26,9 @@ public class CollectGcBiasMetricsTest extends CommandLineProgramTest {
         final File Soutfile   = File.createTempFile("test", ".gc_bias_summary_metrics");
         final File Doutfile = File.createTempFile("test", ".gc_bias_detail_metrics");
         final File pdf   = File.createTempFile("test", ".pdf");
-        //final String referenceFile = "/seq/references/Homo_sapiens_assembly19/v1/Homo_sapiens_assembly19.fasta";
-        final String referenceFile = "Homo_sapiens_assembly19.fasta";
-        final String accLevel = "ALL_READS";
+        final String referenceFile = "/seq/references/Homo_sapiens_assembly19/v1/Homo_sapiens_assembly19.fasta";
+        //final String referenceFile = "Homo_sapiens_assembly19.fasta";
+        final String accLevel = "ALL_READS"; //Options: ALL_READS, LIBRARY, SAMPLE, READ_GROUP or a combination
         final int windowSize = 100;
         final double minGenFraction = 1.0E-5;
         final boolean biSulfiteSeq = false;

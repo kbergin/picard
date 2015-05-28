@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashMap;
 
-/** Calculates GcBias Metrics on multiple levels
+/** Calculates GC Bias Metrics on multiple levels
  * Created by kbergin on 3/23/15.
  */
 public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, Integer, GcBiasCollectorArgs> {
@@ -39,15 +39,18 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
         this.windowsByGc = windowsByGc;
         setup(accumulationLevels, samRgRecords);
     }
-
-    // We will pass gc[] with the DefaultPerRecordCollectorArgs passed to the record collectors
+    
+    /////////////////////////////////////////////////////////////////////////////
     // This method is called once Per samRecord
+    /////////////////////////////////////////////////////////////////////////////
     @Override
     protected GcBiasCollectorArgs makeArg(final SAMRecord rec, final ReferenceSequence ref) {
         return new GcBiasCollectorArgs(rec, ref);
     }
 
-    /** Make a GcBiasCollector with the given arguments */
+    /////////////////////////////////////////////////////////////////////////////
+    //Make a GcBiasCollector with the given arguments
+    /////////////////////////////////////////////////////////////////////////////
     @Override
     protected PerUnitMetricCollector<GcBiasMetrics, Integer, GcBiasCollectorArgs> makeChildCollector(final String sample, final String library, final String readGroup) {
         return new PerUnitGcBiasMetricsCollector(sample, library, readGroup);
@@ -56,14 +59,20 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
     @Override
     public void acceptRecord(final SAMRecord rec, final ReferenceSequence ref) {super.acceptRecord(rec, ref);}
 
-    /** A Collector for individual GcBiasMetrics for a given SAMPLE or SAMPLE/LIBRARY or SAMPLE/LIBRARY/READ_GROUP (depending on aggregation levels) */
+    /////////////////////////////////////////////////////////////////////////////
+    //A collector for individual GcBiasMetrics for a given SAMPLE or SAMPLE/LIBRARY
+    //or SAMPLE/LIBRARY/READ_GROUP (depending on aggregation levels)
+    /////////////////////////////////////////////////////////////////////////////
     public class PerUnitGcBiasMetricsCollector implements PerUnitMetricCollector<GcBiasMetrics, Integer, GcBiasCollectorArgs> {
         Map<String, GcObject> gcData = new HashMap<String, GcObject>();
         String sample = null;
         String library = null;
         String readGroup = null;
 
-        /*Records the accumulation level for each level of collection and initializes a GcObject for this accumulation level*/
+        /////////////////////////////////////////////////////////////////////////////
+        //Records the accumulation level for each level of collection and initializes
+        // a GcObject for this accumulation level
+        /////////////////////////////////////////////////////////////////////////////
         public PerUnitGcBiasMetricsCollector(final String sample, final String library, final String readGroup) {
             this.sample = sample;
             this.library = library;
@@ -83,7 +92,11 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
                 gcData.put(prefix, new GcObject());
             }
         }
-/* takes each record and sends them to addRead to calculate gc metrics for that read for each accumulation level */
+
+        /////////////////////////////////////////////////////////////////////////////
+        //Takes each record and sends them to addRead to calculate gc metrics for
+        // that read for each accumulation level
+        /////////////////////////////////////////////////////////////////////////////
         public void acceptRecord(final GcBiasCollectorArgs args) {
             final SAMRecord rec = args.getRec();
             final String type;
@@ -121,7 +134,9 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
 
         public void finish() {}
 
-        /** Sums the values in an int[]. */
+        /////////////////////////////////////////////////////////////////////////////
+        // Sums the values in an int[].
+        /////////////////////////////////////////////////////////////////////////////
         private double sum(final int[] values) {
             final int length = values.length;
             double total = 0;
@@ -131,8 +146,11 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
 
             return total;
         }
-/* called to add metrics to the output file for each level of collection
-* these metrics are used for graphing gc bias in R script */
+
+        /////////////////////////////////////////////////////////////////////////////
+        //Called to add metrics to the output file for each level of collection
+        // these metrics are used for graphing gc bias in R script
+        /////////////////////////////////////////////////////////////////////////////
         public void addMetricsToFile(final MetricsFile<GcBiasMetrics, Integer> file) {
             for (final Map.Entry<String, GcObject> entry : gcData.entrySet()) {
                 final GcObject gcCur = entry.getValue();
@@ -185,7 +203,9 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
         }
     }
 
-    /** Calculates the Illumina style AT and GC dropout numbers. */
+    /////////////////////////////////////////////////////////////////////////////
+    // Calculates the Illumina style AT and GC dropout numbers
+    /////////////////////////////////////////////////////////////////////////////
     private void calculateDropoutMetrics(final Collection<GcBiasDetailMetrics> details,
                                          final GcBiasSummaryMetrics summary) {
         // First calculate the totals
@@ -215,7 +235,9 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
         summary.GC_DROPOUT = gcDropout;
     }
 
-    /**Keeps track of each level of GcCalculation*/
+    /////////////////////////////////////////////////////////////////////////////
+    //Keeps track of each level of GcCalculation
+    /////////////////////////////////////////////////////////////////////////////
     class GcObject{
         int totalClusters = 0;
         int totalAlignedReads = 0;
@@ -225,9 +247,11 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
         String group = null;
     }
 
-    /**Adds each read to the appropriate gcObj which is determined in acceptRecord above
-     * Also calculates values for calculating GC Bias at each level */
-    private void addRead(final GcObject gcObj, final SAMRecord rec, final String group, final byte[] gc, final byte[] refBases) {
+    /////////////////////////////////////////////////////////////////////////////
+    //Adds each read to the appropriate gcObj which is determined in acceptRecord above
+    //Also calculates values for calculating GC Bias at each level
+    /////////////////////////////////////////////////////////////////////////////
+     private void addRead(final GcObject gcObj, final SAMRecord rec, final String group, final byte[] gc, final byte[] refBases) {
         if (!rec.getReadPairedFlag() || rec.getFirstOfPairFlag()) ++gcObj.totalClusters;
         final int pos = rec.getReadNegativeStrandFlag() ? rec.getAlignmentEnd() - windowSize : rec.getAlignmentStart();
         ++gcObj.totalAlignedReads;
@@ -247,8 +271,10 @@ public class GcBiasMetricsCollector extends MultiLevelCollector<GcBiasMetrics, I
     }
 }
 
-// Arguments that need to be calculated once per SAMRecord that are then passed to each PerUnitMetricCollector
+/////////////////////////////////////////////////////////////////////////////
+// Arguments that need to be passed to each PerUnitMetricCollector
 // for the given record
+/////////////////////////////////////////////////////////////////////////////
 class GcBiasCollectorArgs {
     private final SAMRecord rec;
     private final ReferenceSequence ref;

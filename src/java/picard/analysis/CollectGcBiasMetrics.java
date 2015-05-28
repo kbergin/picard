@@ -25,20 +25,20 @@
 package picard.analysis;
 
 import htsjdk.samtools.SAMFileHeader;
-import htsjdk.samtools.reference.ReferenceSequenceFile;
-import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.metrics.MetricsFile;
 import htsjdk.samtools.reference.ReferenceSequence;
+import htsjdk.samtools.reference.ReferenceSequenceFile;
+import htsjdk.samtools.reference.ReferenceSequenceFileFactory;
 import htsjdk.samtools.util.CollectionUtil;
 import htsjdk.samtools.util.IOUtil;
 import htsjdk.samtools.util.StringUtil;
+import picard.analysis.directed.GcBiasMetricsCollector;
 import picard.cmdline.CommandLineProgramProperties;
 import picard.cmdline.Option;
 import picard.cmdline.programgroups.Metrics;
-import picard.util.RExecutor;
-import picard.analysis.directed.GcBiasMetricsCollector;
 import picard.metrics.GcBiasMetrics;
+import picard.util.RExecutor;
 
 import java.io.File;
 import java.text.NumberFormat;
@@ -55,6 +55,7 @@ import java.util.Set;
  * to the average number of reads per window across the whole genome.
  *
  * @author Tim Fennell
+ * edited by Kylee Bergin
  */
 @CommandLineProgramProperties(
         usage = "Tool to collect information about GC bias in the reads in a given BAM file. Computes" +
@@ -95,16 +96,21 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
     public final int windowSize = WINDOW_SIZE;
     final int[] windowsByGc = new int[WINDOWS];
     public static final int WINDOWS = 101;
-    //Needed a way to store GC calculation for each base in each reference sequence: hash of gc[] for each reference
+    //Hash map of gc[] with reference name as key
     private final Map<String, byte[]> gcByRef = new HashMap<String, byte[]>();
 
-    /** Stock main method. */
+    ////////////////////////////////////////////////////////////////////////////
+    // Stock main method
+    ////////////////////////////////////////////////////////////////////////////
     public static void main(final String[] args) {
         System.exit(new CollectGcBiasMetrics().instanceMain(args));
     }
 
-    //Setup calculates gc[] for each reference. Must be done at startup to avoid missing reference sequences in the case of small files
-    // that may not have reads aligning to every reference sequence
+    /////////////////////////////////////////////////////////////////////////////
+    // Setup calculates gc[] for the reference. Must be done at startup to avoid
+    // missing reference sequences in the case of small files that may
+    // not have reads aligning to every reference sequence
+    /////////////////////////////////////////////////////////////////////////////
     @Override
     protected void setup(final SAMFileHeader header, final File samFile, final File referenceFile) {
         IOUtil.assertFileIsWritable(CHART_OUTPUT);
@@ -161,7 +167,9 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
                 CHART_OUTPUT.getAbsolutePath(),
                 String.valueOf(WINDOW_SIZE));
     }
-    /** Calculcate all the GC values for all windows. */
+    /////////////////////////////////////////////////////////////////////////////
+    // Calculcate all the GC values for all windows
+    /////////////////////////////////////////////////////////////////////////////
     private byte[] calculateAllGcs(final byte[] refBases, final int[] windowsByGc, final int lastWindowStart) {
         final CalculateGcState state = new CalculateGcState();
         final int refLength = refBases.length;
@@ -174,10 +182,10 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
         }
         return gc;
     }
-    /**
-     * Calculates GC as a number from 0 to 100 in the specified window. If the window includes
-     * more than five no-calls then -1 is returned.
-     */
+    /////////////////////////////////////////////////////////////////////////////
+    // Calculates GC as a number from 0 to 100 in the specified window.
+    // If the window includes more than five no-calls then -1 is returned.
+    /////////////////////////////////////////////////////////////////////////////
     private int calculateGc(final byte[] bases, final int startIndex, final int endIndex, final CalculateGcState state) {
         if (state.init) {
             state.init = false;
@@ -200,8 +208,9 @@ public class CollectGcBiasMetrics extends SinglePassSamProgram {
         if (state.nCount > 4) return -1;
         else return (state.gcCount * 100) / (endIndex - startIndex);
     }
-
-    /** Keeps track of current GC calculation state. */
+    /////////////////////////////////////////////////////////////////////////////
+    // Keeps track of current GC calculation state
+    /////////////////////////////////////////////////////////////////////////////
     class CalculateGcState {
         boolean init = true;
         int nCount;
